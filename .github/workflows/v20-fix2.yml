@@ -1,0 +1,53 @@
+name: V20 Fix 2
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch
+        env:
+          MSG: ${{ github.event.head_commit.message }}
+        run: |
+          if [ "$MSG" = "V20: segunda etapa de correcoes" ] || [ "$MSG" = "V20: precisao de endereco mapa municipal e WhatsApp" ]; then exit 0; fi
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('v20/index.html');s=p.read_text()
+          a=s.index('function normalize(s)');b=s.index('function current()',a)
+          engine=r'''function normalize(s){return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim()}
+function cepOf(s){let m=String(s||'').match(/\b(\d{5})[- .]?(\d{3})\b/);return m?m[1]+m[2]:''}
+async function viaCep(c){if(!/^\d{8}$/.test(c))return null;try{let r=await fetch('https://viacep.com.br/ws/'+c+'/json/');let j=await r.json();return j.erro?null:j}catch(e){return null}}
+function parseAddress(o){let r=String(o.address||'').trim(),n=String(o.number||'').trim(),c=cepOf(r);r=r.replace(/\b\d{5}[- .]?\d{3}\b/,'').trim();if(!n){let m=r.match(/^(.*?)[, ]+(\d+[A-Za-z]?)$/);if(m){r=m[1];n=m[2]}}return{street:r,number:n,sector:String(o.sector||''),cep:c}}
+async function nominatim(q){try{let r=await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=8&countrycodes=br&accept-language=pt-BR&q='+encodeURIComponent(q));return r.ok?await r.json():[]}catch(e){return[]}}
+function score(x,o){let a=x.address||{},city=normalize(a.city||a.town||a.municipality||''),road=normalize(a.road||''),p=parseAddress(o),z=city.includes('valparaiso de goias')?70:-999;if(p.sector&&normalize(a.suburb||a.neighbourhood||'').includes(normalize(p.sector)))z+=20;if(p.street){let t=normalize(p.street);z+=road===t?30:(road.includes(t)||t.includes(road)?18:0)}if(p.number&&String(a.house_number||'')===p.number)z+=35;return z}
+async function geocode(o){if(o.lat!=null&&o.lng!=null)return true;if(!o.address)return false;let p=parseAddress(o);if(p.cep){let v=await viaCep(p.cep);if(v&&normalize(v.localidade).includes('valparaiso')){o.address=v.logradouro||o.address;o.sector=v.bairro||o.sector;p=parseAddress(o)}}if(!p.street)return false;let qs=[[p.street,p.number,p.sector,'Valparaiso de Goias GO Brasil'],[p.street,p.sector,'Valparaiso de Goias GO Brasil'],[p.street,'Valparaiso de Goias GO Brasil']],all=[];for(let q of qs)all.push(...await nominatim(q));let c=[],u=new Set();for(let x of all){let k=(+x.lat).toFixed(6)+','+(+x.lon).toFixed(6);if(u.has(k))continue;u.add(k);let z=score(x,o);if(z>=70)c.push({...x,score:z})}c.sort((x,y)=>y.score-x.score);if(!c.length){toast('Endereço não confirmado. Use FIXAR NO MAPA.');return false}if(c[0].score<105){showModal('🔎 Confirmar endereço','<div class="verify">Para evitar erro em rua, quadra ou beco, escolha o resultado correto ou fixe o ponto manualmente.</div>'+c.slice(0,6).map((x,i)=>'<div class="pkg"><b>'+esc(x.display_name)+'</b><div class="sub">Conferência '+x.score+'/125</div><button class="btn primary" data-cand="'+i+'">USAR ESTE PONTO</button></div>').join('')+'<button id="manualCand" class="btn loc" style="width:100%">📍 FIXAR NO MAPA</button>');$('modalBody').querySelectorAll('[data-cand]').forEach(q=>q.onclick=()=>{let x=c[+q.dataset.cand];o.lat=+x.lat;o.lng=+x.lon;o.fixed=true;save();closeModal();render();draw();toast('✓ Ponto confirmado')});$('manualCand').onclick=()=>{closeModal();manualPin(o)};return false}o.lat=+c[0].lat;o.lng=+c[0].lon;o.geocodeSource='Busca por endereço';save();render();draw();return true}
+function manualPin(o){showModal('📍 Fixar ponto exato','<div class="verify"><b>Beco, lote, casa sem placa ou endereço difícil:</b> toque exatamente no ponto da entrega. Essa coordenada vira a referência fixa.</div><div id="pinMap" style="height:420px;border-radius:12px;overflow:hidden"></div><div id="pinRead" class="note">Toque no mapa.</div><button id="savePin" class="btn primary" style="width:100%">SALVAR PONTO EXATO</button>');setTimeout(()=>{let pm=L.map('pinMap').setView(o.lat!=null?[o.lat,o.lng]:CENTER,o.lat!=null?19:16),mk=o.lat?L.marker([o.lat,o.lng]).addTo(pm):null;L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:20}).addTo(pm);pm.on('click',e=>{if(mk)mk.remove();mk=L.marker(e.latlng).addTo(pm);$('pinRead').textContent='📍 '+e.latlng.lat.toFixed(6)+', '+e.latlng.lng.toFixed(6)});$('savePin').onclick=()=>{if(!mk)return toast('Toque no ponto correto.');let q=mk.getLatLng();o.lat=q.lat;o.lng=q.lng;o.fixed=true;o.geocodeSource='Pino manual';save();closeModal();render();draw();toast('✓ Ponto exato salvo')};setTimeout(()=>pm.invalidateSize(),200)},80)}
+function streetView(o){if(o.lat==null)return toast('Confirme o ponto primeiro.');window.open('https://www.google.com/maps/@?api=1&map_action=pano&viewpoint='+o.lat+','+o.lng,'_blank')}
+function satellite(o){if(o.lat==null)return toast('Confirme o ponto primeiro.');window.open('https://www.google.com/maps/@'+o.lat+','+o.lng+',20z/data=!3m1!1e3','_blank')}
+'''
+          s=s[:a]+engine+s[b:]
+          s=re.sub(r"function whatsText\(o\)\{.*?\}","function whatsText(o){return 'Olá, '+(o.name||'')+'! 👋 Sou da J&T Turbo.\\n\\nPara eu chegar certinho: toque no 📎 → Localização → Enviar sua localização atual.\\n\\nSe tiver um ponto fixo na entrada, pode enviar também. Obrigado!'}",s,count=1)
+          s=re.sub(r"function municipal\(\)\{.*?\}\nfunction fit", "function municipal(){showModal('🏛️ Mapa municipal de Valparaíso','<div class=\"verify\">PDF oficial dentro do app. Se o iPhone não renderizar, abra em tela cheia.</div><iframe src=\"'+MUNICIPAL+'#view=FitH\" style=\"width:100%;height:72vh;border:0;border-radius:12px\"></iframe><div style=\"display:flex;gap:6px;margin-top:7px\"><button class=\"btn primary\" id=\"op\">ABRIR PDF COMPLETO</button><button class=\"btn loc\" id=\"oi\">MAPA IBGE</button></div>');$('op').onclick=()=>window.open(MUNICIPAL,'_blank');$('oi').onclick=()=>window.open(IBGE,'_blank')}\nfunction fit",s,count=1,flags=re.S)
+          s=s.replace("function form(o){let edit=!!o;", "function form(o){let edit=!!o;window._editing=o;")
+          s=s.replace("if(ad!==o.address)o.lat=o.lng=undefined", "if(!o.fixed&&(ad!==oldAddress||newNum!==oldNumber||newSector!==oldSector)){o.lat=undefined;o.lng=undefined;delete o.geocodeLabel;delete o.geocodeSource}")
+          s=s.replace("o.name=n;o.phone=p;o.address=ad;o.number=$('fnum').value.trim();o.complement=$('fc').value.trim();o.sector=$('fs').value.trim();", "const oldAddress=o.address||'',oldNumber=o.number||'',oldSector=o.sector||'',newNum=$('fnum').value.trim(),newSector=$('fs').value.trim();o.name=n;o.phone=p;o.address=ad;o.number=newNum;o.complement=$('fc').value.trim();o.sector=newSector;")
+          # Add useful buttons after existing Whats/map button.
+          needle="<button class=\"btn loc\" data-c=\"paste\" data-id=\"'+o.id+'\">📋 COLAR MAPA DO WHATS</button>"
+          add=needle+"<button class=\"btn loc mini\" data-c=\"find\" data-id=\"'+o.id+'\">🔎 BUSCAR</button><button class=\"btn loc mini\" data-c=\"pin\" data-id=\"'+o.id+'\">📍 FIXAR</button><button class=\"btn loc mini\" data-c=\"street\" data-id=\"'+o.id+'\">🏠 FACHADA</button><button class=\"btn loc mini\" data-c=\"sat\" data-id=\"'+o.id+'\">🛰️ SATÉLITE</button>"
+          s=s.replace(needle,add)
+          s=s.replace("case'paste':paste(o.id);break;case'go':navigate(o);break;", "case'paste':paste(o.id);break;case'find':geocode(o);break;case'pin':manualPin(o);break;case'street':streetView(o);break;case'sat':satellite(o);break;case'go':navigate(o);break;")
+          s=s.replace('.pkgactions .btn{min-height:37px;font-size:9px}', '.pkgactions .btn{min-height:37px;font-size:9px}.verify{font-size:9px;color:#8a5a12;background:#fff7e7;border:1px solid #efd9a8;border-radius:9px;padding:8px;margin-top:6px}.mini{font-size:8px!important;min-height:34px!important}')
+          p.write_text(s)
+          PY
+      - name: Commit
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add v20/index.html
+          git diff --cached --quiet || git commit -m 'V20: precisao de endereco mapa municipal e WhatsApp'
+          git push
