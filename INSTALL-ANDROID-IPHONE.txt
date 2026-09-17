@@ -1,0 +1,15 @@
+J&T TURBO — V4 MOBILE
+
+IMPORTANTE: este pacote foi preparado como PWA (Progressive Web App), o formato que permite o mesmo app funcionar no Android e iPhone.
+
+Para instalar como aplicativo:
+1. Coloque esta pasta em um servidor HTTPS.
+2. Abra a página no Chrome (Android) ou Safari (iPhone).
+3. Android: menu ⋮ > Instalar aplicativo.
+4. iPhone: Compartilhar > Adicionar à Tela de Início.
+
+Depois disso o J&T Turbo abre em tela de aplicativo, sem a barra normal do navegador.
+
+A versão desta pasta também guarda a rota no próprio aparelho (localStorage), então a parte de cadastro/histórico não depende de um servidor. O envio automático pela API oficial do WhatsApp continua exigindo o backend Meta configurado.
+
+Não existe um único arquivo .zip que o Android e o iPhone possam simplesmente tocar e instalar como APK/IPA: APK é Android; no iPhone o aplicativo precisa ser assinado/distribuído pela Apple. O PWA evita essa limitação e usa o mesmo pacote nos dois sistemas.
