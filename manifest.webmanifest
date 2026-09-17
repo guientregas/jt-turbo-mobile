@@ -1,0 +1,12 @@
+{
+  "name":"J&T Turbo",
+  "short_name":"J&T Turbo",
+  "start_url":"./",
+  "scope":"./",
+  "display":"standalone",
+  "background_color":"#07111f",
+  "theme_color":"#07111f",
+  "lang":"pt-BR",
+  "description":"Assistente móvel de rotas, endereços, câmera e fachadas",
+  "orientation":"portrait"
+}
