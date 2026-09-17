@@ -11,16 +11,7 @@
 <body>
 <header class="top"><div class="topline"><div><h1>🚚 J&T Turbo <small>V19</small></h1><small id="gpsState">GPS parado</small></div><span class="pill" id="routeState">Sem rota</span></div></header>
 <main class="wrap">
-<section class="card hero" id="home">
-<h2>Hoje você só precisa decidir o próximo passo.</h2>
-<div class="muted">O Turbo localiza, ordena, avisa, navega e registra. Quando houver dúvida, ele pede confirmação em vez de inventar um endereço.</div>
-<div class="grid4" style="margin-top:10px">
-<button class="o big" data-a="start"><b>▶ Começar</b><small>rota e GPS</small></button>
-<button class="dark big" data-a="capture"><b>📷 Capturar</b><small>nome / WhatsApp / endereço</small></button>
-<button class="b big" data-a="wa"><b>💬 WhatsApp</b><small>localização dos clientes</small></button>
-<button class="soft big" data-a="add"><b>➕ Cliente</b><small>cadastro manual</small></button>
-</div>
-</section>
+<section class="card hero" id="home"><h2>Hoje você só precisa decidir o próximo passo.</h2><div class="muted">O Turbo localiza, ordena, avisa, navega e registra. Quando houver dúvida, ele pede confirmação em vez de inventar um endereço.</div><div class="grid4" style="margin-top:10px"><button class="o big" data-a="start"><b>▶ Começar</b><small>rota e GPS</small></button><button class="dark big" data-a="capture"><b>📷 Capturar</b><small>nome / WhatsApp / endereço</small></button><button class="b big" data-a="wa"><b>💬 WhatsApp</b><small>localização dos clientes</small></button><button class="soft big" data-a="add"><b>➕ Cliente</b><small>cadastro manual</small></button></div></section>
 <section class="card next" id="nextCard"><div class="nextTitle"><div><h2>🚦 Próxima entrega</h2><div id="nextText" class="muted">Adicione entregas para começar.</div></div><div id="nextEta" class="eta"></div></div><div class="actions"><button class="o" data-a="goNext">🧭 Ir para entrega</button><button class="g" data-a="arrived">📍 Cheguei</button><button class="soft" data-a="facade">🏠 Ver fachada</button></div></section>
 <section class="stats"><div class="stat"><b id="stTotal">0</b><small>entregas</small></div><div class="stat"><b id="stLoc">0</b><small>localizadas</small></div><div class="stat"><b id="stPend">0</b><small>pendentes</small></div><div class="stat"><b id="stDone">0</b><small>concluídas</small></div></section>
 <section class="card" id="mapSec"><div class="topline" style="color:var(--ink)"><div><h2>🗺️ Mapa</h2><div id="mapStatus" class="muted">Pins das entregas e sua posição aparecem aqui.</div></div><button class="soft" data-a="fit">Enquadrar</button></div><div class="mapbar"><button class="b" data-a="gps">📍 Meu GPS</button><button class="o" data-a="route">🛣️ Traçar rota</button><button class="soft" data-a="manual">🎯 Marcar casa</button><button class="soft" data-a="municipal">🗺️ Mapa municipal</button></div><div id="map"></div><div id="routeInfo" class="muted" style="padding-top:7px"></div></section>
@@ -28,9 +19,6 @@
 <section class="card hidden" id="moreSec"><h2>⚙️ Mais</h2><div class="grid4"><button class="soft" data-a="import">📦 Importar</button><button class="soft" data-a="municipal">🗺️ Valparaíso</button><button class="soft" data-a="memory">🧠 Base local</button><button class="soft" data-a="settings">🔧 Configurações</button></div><div id="moreInfo" class="muted" style="margin-top:10px"></div></section>
 </main>
 <nav class="bottom"><button class="active" data-tab="home">🏠<br>Início</button><button data-tab="mapSec">🗺️<br>Mapa</button><button data-tab="ordersSec">📦<br>Entregas</button><button data-tab="moreSec">☰<br>Mais</button></nav>
-<div id="modal" class="modal"><div class="sheet"><div class="sheethead"><h2 id="mt">J&T Turbo</h2><button class="soft" data-a="close">Fechar</button></div><div id="mb"></div></div></div>
-<div id="toast" class="toast"></div><input id="file" type="file" accept=".csv,.txt" class="hidden">
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-<script src="core.js"></script><script src="extra.js"></script><script src="wa.js"></script>
+<div id="modal" class="modal"><div class="sheet"><div class="sheethead"><h2 id="mt">J&T Turbo</h2><button class="soft" data-a="close">Fechar</button></div><div id="mb"></div></div></div><div id="toast" class="toast"></div><input id="file" type="file" accept=".csv,.txt" class="hidden">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script><script src="core.js"></script><script src="extra.js"></script><script src="wa.js"></script><script src="scan.js"></script>
 </body></html>
