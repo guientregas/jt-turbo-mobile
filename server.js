@@ -3,6 +3,7 @@ const fs=require('fs');
 const path=require('path');
 const crypto=require('crypto');
 const app=express();
+app.use((req,res,next)=>{res.setHeader('Access-Control-Allow-Origin','*');res.setHeader('Access-Control-Allow-Headers','Content-Type,x-hub-signature-256');res.setHeader('Access-Control-Allow-Methods','GET,POST,OPTIONS');if(req.method==='OPTIONS')return res.sendStatus(204);next()});
 app.use(express.json({limit:'2mb',verify:(req,res,buf)=>{req.rawBody=buf}}));
 app.use(express.static(path.join(__dirname,'public')));
 const PORT=process.env.PORT||3000;
