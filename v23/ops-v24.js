@@ -42,6 +42,20 @@ function gpsWatch(){
  },function(){},{enableHighAccuracy:true,maximumAge:5000,timeout:15000});
 }
 
+function drawRoadRoute(){
+ var m=A.map&&A.map(),s=state(),p=A.position&&A.position(),o=(s.orders||[]).filter(function(x){return x.status!=='done'&&isFinite(+x.lat)&&isFinite(+x.lng)});
+ if(!m||o.length<1)return;
+ var pts=p?[p].concat(o):o;
+ var coords=pts.map(function(x){return (+x.lng).toFixed(6)+','+(+x.lat).toFixed(6)}).join(';');
+ var base=((window.JT_CONFIG&&window.JT_CONFIG.API_BASE)||'');
+ fetch((base+'/api/route?path='+encodeURIComponent(coords)).replace('/api/route?path=','/api/route?points=')) .then(function(r){return r.json()}).then(function(x){
+  if(!x||!x.routes||!x.routes[0]||!x.routes[0].geometry)return;
+  if(window.__jtRoadLine){try{m.removeLayer(window.__jtRoadLine)}catch(e){}}
+  window.__jtRoadLine=L.geoJSON(x.routes[0].geometry).addTo(m);
+  A.toast&&A.toast('🛣️ Trajeto viário calculado: '+(x.routes[0].distance/1000).toFixed(1)+' km • ~'+Math.round(x.routes[0].duration/60)+' min');
+ }).catch(function(){});
+}
+
 function routeCache(){
  try{
   var s=state(),p=A.position&&A.position(),orders=(s.orders||[]).filter(function(o){return o.status!=='done'&&isFinite(+o.lat)&&isFinite(+o.lng)});
@@ -150,7 +164,7 @@ function matrixOptimize(){
  if(points.length<2)return;
  var coords=points.map(function(o){return (+o.lng).toFixed(6)+','+(+o.lat).toFixed(6)}).join(';');
  var url=((window.JT_CONFIG&&window.JT_CONFIG.API_BASE)||'')+'/api/route/matrix?points='+encodeURIComponent(coords);
- function fallback(){var left=p.slice(),out=[],cur=start||{lat:+left[0].lat,lng:+left[0].lng};while(left.length){left.sort(function(a,b){return A.distance(cur,a)-A.distance(cur,b)});var o=left.shift();out.push(o);cur={lat:+o.lat,lng:+o.lng}}A.setRoute&&A.setRoute(out);routeCache();A.toast&&A.toast('🚚 Rota calculada em modo offline');}
+ function fallback(){var left=p.slice(),out=[],cur=start||{lat:+left[0].lat,lng:+left[0].lng};while(left.length){left.sort(function(a,b){return A.distance(cur,a)-A.distance(cur,b)});var o=left.shift();out.push(o);cur={lat:+o.lat,lng:+o.lng}}A.setRoute&&A.setRoute(out);routeCache();drawRoadRoute();A.toast&&A.toast('🚚 Rota calculada em modo offline');}
  fetch(url).then(function(r){if(!r.ok)throw Error('matrix');return r.json()}).then(function(m){
   if(!m||!m.durations)throw Error('matrix');
   var used={},out=[],cur=0;
@@ -160,7 +174,7 @@ function matrixOptimize(){
    if(best<0)break;used[best]=1;out.push(p[best]);cur=start?best+1:best;
   }
   if(out.length!==p.length)throw Error('incomplete');
-  A.setRoute&&A.setRoute(out);routeCache();A.toast&&A.toast('🧠 Rota otimizada por tempo de deslocamento');
+  A.setRoute&&A.setRoute(out);routeCache();drawRoadRoute();A.toast&&A.toast('🧠 Rota otimizada por tempo de deslocamento');
  }).catch(fallback);
 }
 
