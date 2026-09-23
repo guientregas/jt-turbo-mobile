@@ -1,8 +1,14 @@
 {
-  "name":"jt-turbo-mobile",
-  "version":"3.0.0",
-  "private":true,
-  "type":"commonjs",
-  "scripts":{"start":"node server.js"},
-  "dependencies":{"express":"^5.1.0"}
+  "name": "jt-turbo-mobile",
+  "version": "3.1.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --check server.js"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "pg": "^8.16.3"
+  }
 }
