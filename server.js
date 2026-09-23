@@ -158,10 +158,12 @@ app.post('/api/telemetry',(req,res)=>{
 });
 
 app.get('/api/route',async(req,res)=>{
+ const points=String(req.query.points||'').trim();
  const a=req.query.a,b=req.query.b;
- if(!a||!b)return res.status(400).json({ok:false,error:'a e b obrigatórios'});
+ if(!points&&(!a||!b))return res.status(400).json({ok:false,error:'points ou a/b obrigatórios'});
  try{
-  const u='https://router.project-osrm.org/route/v1/driving/'+a+';'+b+'?overview=full&geometries=geojson&steps=true';
+  const coords=points||((a)+';'+(b));
+  const u='https://router.project-osrm.org/route/v1/driving/'+coords+'?overview=full&geometries=geojson&steps=true';
   const r=await fetch(u);res.status(r.status).json(await r.json());
  }catch(e){res.status(502).json({ok:false,error:e.message})}
 });
