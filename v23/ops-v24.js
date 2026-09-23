@@ -28,7 +28,7 @@ function syncNow(silent){
 function ensureIDB(){
  if(!window.JTOffline)return;
  var s=state();
- window.JTOffline.putOrders&&window.JTOffline.putOrders(s.orders||[]).catch(function(){});
+ window.JTOffline.putOrders&&window.JTOffline.putOrders(s.orders||[]).catch(function(){});window.JTOffline.putState&&window.JTOffline.putState(s).catch(function(){});
 }
 
 function gpsWatch(){
