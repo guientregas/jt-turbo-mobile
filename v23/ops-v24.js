@@ -69,8 +69,8 @@ function openOps(){
  if(a.length)html+='<div class="result"><b>🚨 Alertas</b><br>'+a.slice(0,30).map(function(x){return '• '+esc(x.text)}).join('<br>')+'</div>';
  else html+='<div class="result">✓ Nenhum alerta operacional.</div>';
  html+='<div class="buttons"><button id="opsSync">☁️ SINCRONIZAR</button><button id="opsCache">📍 SALVAR ROTA OFFLINE</button><button id="opsDiag">🩺 DIAGNÓSTICO</button></div>';
+ if(!el('modal')){A.toast&&A.toast('Central de operação indisponível');return}
  openModal('🛰️ CENTRAL DE OPERAÇÃO',html);
- else if(window.toast)window.toast('Central de operação indisponível');
  el('opsSync').onclick=function(){syncNow(false)};
  el('opsCache').onclick=function(){routeCache();A.toast&&A.toast('✓ Rota salva para uso offline')};
  el('opsDiag').onclick=diagnostic;
@@ -133,6 +133,17 @@ function wrapDone(){
  A.__proofWrapped=true;
 }
 
+function routeBusy(){return !!window.__jtActionBusy}
+function setRouteBusy(v){
+ window.__jtActionBusy=!!v;
+ ['routeGo','routeCall','routeWa','routeArrive','routeDone','routeFail','routeFinish','smGo','smCall','smWa','smArr','smDone','smFail'].forEach(function(id){var b=el(id);if(b)b.disabled=!!v;});
+}
+function bindFastRouteActions(){
+ var ids=['routeGo','routeCall','routeWa','routeArrive','routeDone','routeFail','routeFinish'];
+ ids.forEach(function(id){var b=el(id);if(!b||b.__fastBound)return;b.__fastBound=true;b.addEventListener('click',function(){if(routeBusy())return; if(id==='routeGo'){var o=A.current&&A.current();if(o){setRouteBusy(true);try{A.navigate(o.id)}finally{setTimeout(function(){setRouteBusy(false)},350)}}}else if(id==='routeCall'){var o=A.current&&A.current();if(o){setRouteBusy(true);try{A.call(o)}finally{setTimeout(function(){setRouteBusy(false)},350)}}else if(id==='routeWa'){var o=A.current&&A.current();if(o){setRouteBusy(true);try{A.whats(o)}finally{setTimeout(function(){setRouteBusy(false)},900)}}else if(id==='routeArrive'){setRouteBusy(true);try{A.arrive()}finally{setTimeout(function(){setRouteBusy(false)},180)}}else if(id==='routeDone'){setRouteBusy(true);try{A.finish(true)}finally{setTimeout(function(){setRouteBusy(false)},500)}}else if(id==='routeFail'){setRouteBusy(true);try{A.finish(false)}finally{setTimeout(function(){setRouteBusy(false)},350)}}else if(id==='routeFinish'){setRouteBusy(true);try{window.__jtFinishRoute&&window.__jtFinishRoute()}finally{setTimeout(function(){setRouteBusy(false)},350)}}});});
+}
+
+
 
 function matrixOptimize(){
  var s=state(),p=(s.orders||[]).filter(function(o){return o.status!=='done'});
@@ -175,9 +186,9 @@ function updateOps(){
  var a=alerts();b.title=a.length?'⚠️ '+a.length+' alerta(s)':'Central de operação';
 }
 
-addButton();gpsWatch();wrapDone();tick();
-setTimeout(function(){var st=el('start');if(st)st.onclick=matrixOptimize},50);
-setInterval(function(){addButton();wrapDone();tick()},4000);
+addButton();gpsWatch();wrapDone();bindFastRouteActions();tick();
+setTimeout(function(){var st=el('start');if(st)st.onclick=function(){if(routeBusy())return;matrixOptimize()},50);
+setInterval(function(){addButton();wrapDone();bindFastRouteActions();tick()},4000);
 window.addEventListener('online',function(){syncNow(false);routeCache()});
 window.addEventListener('offline',function(){A.toast&&A.toast('⚠️ OFFLINE — operação local ativa')});
 window.JT_V24={sync:syncNow,alerts:alerts,diagnostic:diagnostic,proof:proof,routeCache:routeCache};
