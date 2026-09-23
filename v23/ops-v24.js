@@ -128,11 +128,23 @@ function proof(id,doneFn){
   o.receivedBy=el('proofName').value.trim();o.receivedDoc=el('proofDoc').value.trim();
   o.signature=c.toDataURL('image/png');
   var f=el('proofPhoto').files[0];
-  if(f){o.proofName=f.name;o.proofType=f.type;o.proofSize=f.size}
-  o.proofAt=new Date().toISOString();
+  function saveProofPhoto(done){
+   if(!f){done();return}
+   var img=new Image(),url=URL.createObjectURL(f);
+   img.onload=function(){
+    var max=1280,w=img.naturalWidth,h=img.naturalHeight;
+    if(w>max||h>max){var z=Math.min(max/w,max/h);w=Math.round(w*z);h=Math.round(h*z)}
+    var pc=document.createElement('canvas');pc.width=w;pc.height=h;pc.getContext('2d').drawImage(img,0,0,w,h);
+    o.proofPhoto=pc.toDataURL('image/jpeg',.72);o.proofName=f.name;o.proofType='image/jpeg';o.proofSize=o.proofPhoto.length;URL.revokeObjectURL(url);done();
+   };
+   img.onerror=function(){URL.revokeObjectURL(url);done()};
+   img.src=url;
+  }
+  saveProofPhoto(function(){o.proofAt=new Date().toISOString();
   saveLocal(); var cm=el('modal');if(cm){cm.className='modal';cm.setAttribute('aria-hidden','true');document.body.style.overflow=''}
   if(doneFn)doneFn(o); A.refresh&&A.refresh(); ensureIDB(); syncNow(true);
   A.toast&&A.toast('✓ Entrega confirmada com comprovante');
+  }); 
  };
 }
 
