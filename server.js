@@ -2,15 +2,20 @@ const express=require('express');
 const fs=require('fs');
 const path=require('path');
 const crypto=require('crypto');
+const {Pool}=require('pg');
 
 const app=express();
 const PORT=process.env.PORT||3000;
-const DB=path.join(__dirname,'data','db.json');
+const DB=process.env.DB_FILE||path.join(__dirname,'data','db.json');
+const pool=process.env.DATABASE_URL?new Pool({connectionString:process.env.DATABASE_URL,ssl:process.env.DATABASE_URL.includes('localhost')?false:{rejectUnauthorized:false}}):null;
 fs.mkdirSync(path.dirname(DB),{recursive:true});
 
 let db={sessions:{},whatsapp:{events:[],contacts:{}},telemetry:[]};
 try{if(fs.existsSync(DB))db={...db,...JSON.parse(fs.readFileSync(DB,'utf8'))}}catch(e){console.error('DB:',e.message)}
 function save(){fs.writeFileSync(DB,JSON.stringify(db,null,2))}
+async function initDb(){if(!pool)return;await pool.query(`CREATE TABLE IF NOT EXISTS jt_state (session_id text PRIMARY KEY, payload jsonb NOT NULL, updated_at timestamptz NOT NULL DEFAULT now())`)}
+async function persistSession(sid,payload){if(pool){await pool.query(`INSERT INTO jt_state(session_id,payload,updated_at) VALUES($1,$2,now()) ON CONFLICT(session_id) DO UPDATE SET payload=EXCLUDED.payload,updated_at=now()`,[sid,payload])}else save()}
+async function loadSession(sid){if(pool){const r=await pool.query('SELECT payload FROM jt_state WHERE session_id=$1',[sid]);return r.rows[0]?.payload||null}return db.sessions[sid]||null}
 
 const env={
  token:process.env.WA_ACCESS_TOKEN||'',
@@ -30,12 +35,14 @@ app.use((req,res,next)=>{
  next();
 });
 app.use(express.json({limit:'5mb',verify:(req,res,buf)=>{req.rawBody=buf}}));
-app.use(express.static(path.join(__dirname,'public')));
+const hits=new Map();
+app.use((req,res,next)=>{if(!req.path.startsWith('/api/')&&!req.path.startsWith('/webhook/'))return next();const now=Date.now(),key=(req.ip||'unknown')+':'+req.path,old=hits.get(key)||{t:now,n:0};if(now-old.t>60000){old.t=now;old.n=0}old.n++;hits.set(key,old);if(old.n>120)return res.status(429).json({ok:false,error:'Muitas requisições, tente novamente em instantes'});next()});
 
 app.get('/health',(req,res)=>res.json({
  ok:true,version:'V24',time:new Date().toISOString(),
  whatsappConfigured:!!(env.token&&env.phoneNumberId),
- apiKeyProtected:!!env.apiKey
+ apiKeyProtected:!!env.apiKey,
+ database:pool?'postgres':'file-fallback'
 }));
 
 function verifyMeta(req){
@@ -128,20 +135,20 @@ function mergeById(existing,incoming){
  }
  return Array.from(map.values());
 }
-app.post('/api/sync',(req,res)=>{
+app.post('/api/sync',async(req,res)=>{
  try{
   const x=req.body||{},sid=String(x.sessionId||'default');
-  const old=db.sessions[sid]||{orders:[],history:[]};
+  const old=await loadSession(sid)||{orders:[],history:[]};
   const mergedOrders=mergeById(old.orders,x.orders);
   const mergedHistory=mergeById(old.history,x.history);
   const syncedAt=new Date().toISOString();
   db.sessions[sid]={...old,orders:mergedOrders,history:mergedHistory,syncedAt,clientVersion:x.clientVersion||old.clientVersion||'unknown'};
-  save();
+  await persistSession(sid,db.sessions[sid]);
   res.json({ok:true,syncedAt,orders:mergedOrders,history:mergedHistory,counts:{orders:mergedOrders.length,history:mergedHistory.length}});
  }catch(e){res.status(500).json({ok:false,error:e.message})}
 });
-app.get('/api/session/:id',(req,res)=>{
- const s=db.sessions[String(req.params.id)]||{orders:[],history:[]};
+app.get('/api/session/:id',async(req,res)=>{
+ const s=await loadSession(String(req.params.id))||{orders:[],history:[]};
  res.json({ok:true,session:s});
 });
 app.post('/api/telemetry',(req,res)=>{
@@ -166,5 +173,5 @@ app.get('/api/route/matrix',async(req,res)=>{
  }catch(e){res.status(502).json({ok:false,error:e.message})}
 });
 
-app.get(/.*/,(req,res)=>res.sendFile(path.join(__dirname,'public','index.html')));
-app.listen(PORT,'0.0.0.0',()=>console.log(`J&T Turbo V24 server listening on ${PORT}`));
+app.get('/',(req,res)=>res.json({ok:true,service:'jt-turbo-api',version:'V24.1'}));
+initDb().then(()=>app.listen(PORT,'0.0.0.0',()=>console.log(`J&T Turbo V24.1 server listening on ${PORT}`))).catch(e=>{console.error('DB init:',e);process.exit(1)});
