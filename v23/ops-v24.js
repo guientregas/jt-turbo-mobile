@@ -43,7 +43,7 @@ function gpsWatch(){
 }
 
 function drawRoadRoute(){
- var m=A.map&&A.map(),s=state(),p=A.position&&A.position(),o=(s.orders||[]).filter(function(x){return x.status!=='done'&&isFinite(+x.lat)&&isFinite(+x.lng)});
+ var m=A.map&&A.map(),s=state(),p=A.position&&A.position(),seq=A.route&&A.route(),o=(seq&&seq.length?seq:(s.orders||[]).filter(function(x){return x.status!=='done'})).filter(function(x){return isFinite(+x.lat)&&isFinite(+x.lng)});
  if(!m||o.length<1)return;
  var pts=p?[p].concat(o):o;
  var coords=pts.map(function(x){return (+x.lng).toFixed(6)+','+(+x.lat).toFixed(6)}).join(';');
