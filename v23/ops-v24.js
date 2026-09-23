@@ -208,7 +208,7 @@ function updateOps(){
  var a=alerts();b.title=a.length?'⚠️ '+a.length+' alerta(s)':'Central de operação';
 }
 
-addButton();gpsWatch();wrapDone();bindFastRouteActions();tick();
+addButton();wrapDone();bindFastRouteActions();tick();
 setTimeout(function(){var st=el('start');if(st)st.onclick=function(){if(routeBusy())return;matrixOptimize()},50);
 setInterval(function(){addButton();wrapDone();bindFastRouteActions();tick()},4000);
 window.addEventListener('online',function(){syncNow(false);routeCache()});
