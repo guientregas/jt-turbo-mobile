@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: jt-turbo-api
+    env: docker
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: true
