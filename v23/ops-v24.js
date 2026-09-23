@@ -60,6 +60,7 @@ function alerts(){
  return a;
 }
 
+function openModal(title,body){var m=el('modal'),t=el('mt'),b=el('mb');if(!m||!t||!b)return; t.textContent=title;b.innerHTML=body;m.className='modal on';m.setAttribute('aria-hidden','false');document.body.style.overflow='hidden'}
 function openOps(){
  var a=alerts(),s=state(),meta={};
  try{meta=JSON.parse(localStorage.getItem(OPS)||'{}')}catch(e){}
@@ -68,7 +69,7 @@ function openOps(){
  if(a.length)html+='<div class="result"><b>🚨 Alertas</b><br>'+a.slice(0,30).map(function(x){return '• '+esc(x.text)}).join('<br>')+'</div>';
  else html+='<div class="result">✓ Nenhum alerta operacional.</div>';
  html+='<div class="buttons"><button id="opsSync">☁️ SINCRONIZAR</button><button id="opsCache">📍 SALVAR ROTA OFFLINE</button><button id="opsDiag">🩺 DIAGNÓSTICO</button></div>';
- if(A.modal)A.modal('🛰️ CENTRAL DE OPERAÇÃO',html);
+ openModal('🛰️ CENTRAL DE OPERAÇÃO',html);
  else if(window.toast)window.toast('Central de operação indisponível');
  el('opsSync').onclick=function(){syncNow(false)};
  el('opsCache').onclick=function(){routeCache();A.toast&&A.toast('✓ Rota salva para uso offline')};
@@ -85,7 +86,7 @@ function diagnostic(){
   ['Backend configurado',!!cfg.API_BASE]
  ];
  var html=checks.map(function(x){return '<div class="result">'+(x[1]?'✅':'⚠️')+' <b>'+x[0]+'</b></div>'}).join('');
- if(A.modal)A.modal('🩺 DIAGNÓSTICO DO APP',html);
+ openModal('🩺 DIAGNÓSTICO DO APP',html);
 }
 
 function proof(id,doneFn){
@@ -98,7 +99,7 @@ function proof(id,doneFn){
  '<div class="small">Assinatura</div><canvas id="proofCanvas" style="width:100%;height:150px;border:1px solid #dbe3ed;border-radius:10px;touch-action:none"></canvas>'+
  '<button id="proofClear" style="width:100%;margin-top:6px">LIMPAR ASSINATURA</button>'+
  '<button id="proofSave" class="green" style="width:100%;margin-top:6px">✓ CONFIRMAR ENTREGA</button>';
- A.modal&&A.modal('🧾 COMPROVANTE DE ENTREGA',html);
+ openModal('🧾 COMPROVANTE DE ENTREGA',html);
  var c=el('proofCanvas'),ctx=c.getContext('2d'),drawing=false;
  function resize(){c.width=c.clientWidth*devicePixelRatio;c.height=150*devicePixelRatio;ctx.scale(devicePixelRatio,devicePixelRatio);ctx.lineWidth=2;ctx.lineCap='round'}
  setTimeout(function(){resize()},20);
@@ -114,7 +115,7 @@ function proof(id,doneFn){
   var f=el('proofPhoto').files[0];
   if(f){o.proofName=f.name;o.proofType=f.type;o.proofSize=f.size}
   o.proofAt=new Date().toISOString();
-  saveLocal(); if(window.close)window.close();
+  saveLocal(); var cm=el('modal');if(cm){cm.className='modal';cm.setAttribute('aria-hidden','true');document.body.style.overflow=''}
   if(doneFn)doneFn(o); A.refresh&&A.refresh(); ensureIDB(); syncNow(true);
   A.toast&&A.toast('✓ Entrega confirmada com comprovante');
  };
