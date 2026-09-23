@@ -114,8 +114,10 @@ window.__jtFinishRoute=finishRoute;function arrive(type){var o=current();if(!o)r
           if(!active)return;
           try{var codes=await det.detect(video);if(codes&&codes.length){
             var val=codes[0].rawValue||''; if(window.__jtLastScan===val && Date.now()-window.__jtLastScanAt<3500){requestAnimationFrame(loop);return;} window.__jtLastScan=val;window.__jtLastScanAt=Date.now(); E('scanResult').innerHTML='<b>✓ Código detectado</b><br>'+esc(val);
-            var o={id:String(Date.now())+Math.random(),name:'Encomenda '+val,phone:'',address:'',number:'',sector:'',cep:'',tracking:val,status:'pending'};
-            D.orders.push(o);save();if(window.JTOffline)JTOffline.scan(val).catch(function(){});render();toast('📦 Encomenda '+val+' adicionada');
+            var existing=D.orders.find(function(x){return String(x.tracking||'')===String(val)});
+            if(existing){toast('📦 Código já cadastrado: '+existing.name);findPkg(existing.id);requestAnimationFrame(loop);return}
+            var o={id:String(Date.now())+Math.random(),name:'Cadastrar cliente • '+val,phone:'',address:'',number:'',sector:'',cep:'',lat:undefined,lng:undefined,status:'pending',tracking:val,needsRegistration:true};
+            D.orders.push(o);save();if(window.JTOffline)JTOffline.scan(val).catch(function(){});render();toast('📦 Código registrado. Complete o endereço antes de colocar na rota.');form(o.id);
           }}catch(e){}
           requestAnimationFrame(loop);
         })();
@@ -165,7 +167,7 @@ window.__jtFinishRoute=finishRoute;function arrive(type){var o=current();if(!o)r
     var html='<b>🗺️ Busca municipal</b><div class="small">'+esc(idx.source||'Base municipal')+'</div>';
     if(refs.length)html+='<div class="result"><b>Ruas / quadras / CEP</b><br>'+refs.slice(0,30).map(function(x){return esc(x.neighborhood)+' • '+esc(x.street)+' • CEP '+esc(x.cep)+' • Quadras '+esc(x.quadras)}).join('<br>')+'</div>';
     if(neighborhoods.length)html+='<div class="result"><b>Bairros / setores</b><br>'+neighborhoods.slice(0,30).map(function(x){return esc(x[0])+' • CEP '+esc(x[1])+' a '+esc(x[2])}).join('<br>')+'</div>';
-    if(!quads.length&&!streets.length)html+='<div class="result">Nenhuma referência encontrada na base municipal.</div>';
+    if(!refs.length&&!neighborhoods.length)html+='<div class="result">Nenhuma referência encontrada na base municipal.</div>';
     modal('🏛️ MAPA MUNICIPAL',html+'<div class="small" style="margin-top:8px">A base municipal confirma a existência da referência; ela não substitui coordenada GPS do imóvel.</div>');
   };
   window.jtOpenStreet=function(id){
