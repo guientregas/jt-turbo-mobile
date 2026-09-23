@@ -5,3 +5,18 @@ services:
     plan: free
     healthCheckPath: /health
     autoDeploy: true
+    envVars:
+      - key: CORS_ORIGIN
+        value: https://guientregas.github.io
+      - key: WA_GRAPH_VERSION
+        value: v23.0
+      - key: JT_API_KEY
+        sync: false
+      - key: WA_ACCESS_TOKEN
+        sync: false
+      - key: WA_PHONE_NUMBER_ID
+        sync: false
+      - key: WA_VERIFY_TOKEN
+        sync: false
+      - key: WA_APP_SECRET
+        sync: false
