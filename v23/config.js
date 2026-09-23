@@ -1,1 +1,1 @@
-window.JT_CONFIG={API_BASE:"",SESSION_ID:"default",APP_VERSION:"V23+"};
+window.JT_CONFIG={API_BASE:"",SESSION_ID:"default",APP_VERSION:"V24"};
