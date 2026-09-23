@@ -53,8 +53,9 @@ function verifyMeta(req){
  try{return crypto.timingSafeEqual(Buffer.from(sig),Buffer.from(expected))}catch(e){return false}
 }
 function normPhone(v){let d=String(v||'').replace(/\D/g,'');if(d.length===10||d.length===11)d='55'+d;return d}
-function findOrder(phone){
+async function findOrder(phone){
  phone=normPhone(phone);
+ if(pool){const r=await pool.query('SELECT session_id,payload FROM jt_state');for(const row of r.rows){const s=row.payload||{};const o=(s.orders||[]).find(x=>normPhone(x.phone)===phone&&x.status!=='done');if(o){db.sessions[row.session_id]=s;return{sid:row.session_id,o}}}return null}
  for(const sid of Object.keys(db.sessions)){
   const s=db.sessions[sid];
   const o=(s.orders||[]).find(x=>normPhone(x.phone)===phone&&x.status!=='done');
@@ -95,7 +96,7 @@ app.post('/webhook/whatsapp',(req,res)=>{
      const phone=normPhone(m.from);
      db.whatsapp.events.unshift({id:m.id,phone,type:m.type,receivedAt:new Date().toISOString(),text:m.text?.body||'',location:m.location||null});
      db.whatsapp.events=db.whatsapp.events.slice(0,1000);
-     const match=findOrder(phone);if(!match)continue;
+     const match=await findOrder(phone);if(!match)continue;
      const{sid,o}=match;
      o.updatedAt=new Date().toISOString();
      if(m.type==='location'&&m.location){
@@ -111,7 +112,7 @@ app.post('/webhook/whatsapp',(req,res)=>{
      db.sessions[sid].orders=db.sessions[sid].orders||[];
     }
    }
-   save();
+   if(pool){for(const [sid,sess] of Object.entries(db.sessions))await persistSession(sid,sess)}else save();
   }catch(e){console.error('Webhook:',e.message)}
  });
 });
