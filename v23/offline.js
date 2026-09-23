@@ -1,1 +1,58 @@
-(function(){'use strict';var N='jtTurboV23Offline',V=2;function db(){return new Promise(function(a,b){var r=indexedDB.open(N,V);r.onupgradeneeded=function(){var d=r.result;['orders','outbox','gps','scans','meta'].forEach(function(s){if(!d.objectStoreNames.contains(s))d.createObjectStore(s,{keyPath:s==='orders'?'id': 'id',autoIncrement:s!=='orders'})});};r.onsuccess=function(){a(r.result)};r.onerror=function(){b(r.error)}})}function tx(store,mode,fn){return db().then(function(d){return new Promise(function(a,b){var t=d.transaction(store,mode),s=t.objectStore(store),v=fn(s);t.oncomplete=function(){a(v)};t.onerror=function(){b(t.error)}})})}window.JTOffline={putOrder:function(o){return tx('orders','readwrite',function(s){return s.put(o)})},putOrders:function(os){return Promise.all((os||[]).map(function(o){return window.JTOffline.putOrder(o)}))},getOrders:function(){return tx('orders','readonly',function(s){var r=s.getAll();r.onsuccess=function(){};return r}).then(function(){return db().then(function(d){return new Promise(function(a,b){var r=d.transaction('orders').objectStore('orders').getAll();r.onsuccess=function(){a(r.result||[])};r.onerror=function(){b(r.error)}})})},queue:function(x){return tx('outbox','readwrite',function(s){return s.add({id:Date.now()+Math.random(),createdAt:Date.now(),payload:x})})},gps:function(p){return tx('gps','readwrite',function(s){return s.add({id:Date.now()+Math.random(),...p})})},scan:function(v){return tx('scans','readwrite',function(s){return s.add({id:Date.now()+Math.random(),value:v,createdAt:Date.now()})})},sync:function(state){return fetch((window.JT_CONFIG&&window.JT_CONFIG.API_BASE||'')+'/api/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:(window.JT_CONFIG&&window.JT_CONFIG.SESSION_ID)||'default',orders:state.orders||[],history:state.history||[],syncedAt:new Date().toISOString()})}).then(function(r){if(!r.ok)throw new Error('sync '+r.status);return r.json()})}};window.JTOfflineSync=function(){if(!navigator.onLine||!window.__jtState)return;window.JTOffline.sync(window.__jtState).then(function(){window.__jtLastSync=Date.now();if(window.toast)window.toast('☁️ Dados sincronizados')}).catch(function(){})};window.addEventListener('online',window.JTOfflineSync)})();
+(function(){
+'use strict';
+var DB='jtTurboV24Offline',VER=3;
+function open(){
+ return new Promise(function(ok,no){
+  var r=indexedDB.open(DB,VER);
+  r.onupgradeneeded=function(){
+   var d=r.result;
+   if(!d.objectStoreNames.contains('orders'))d.createObjectStore('orders',{keyPath:'id'});
+   if(!d.objectStoreNames.contains('state'))d.createObjectStore('state',{keyPath:'id'});
+   if(!d.objectStoreNames.contains('outbox'))d.createObjectStore('outbox',{keyPath:'id'});
+   if(!d.objectStoreNames.contains('gps'))d.createObjectStore('gps',{keyPath:'id'});
+   if(!d.objectStoreNames.contains('scans'))d.createObjectStore('scans',{keyPath:'id'});
+  };
+  r.onsuccess=function(){ok(r.result)};r.onerror=function(){no(r.error)};
+ });
+}
+function run(store,mode,fn){
+ return open().then(function(d){return new Promise(function(ok,no){
+  var t=d.transaction(store,mode),s=t.objectStore(store),ret=fn(s);
+  t.oncomplete=function(){ok(ret)};t.onerror=function(){no(t.error)};
+ })});
+}
+function getAll(store){
+ return open().then(function(d){return new Promise(function(ok,no){
+  var r=d.transaction(store,'readonly').objectStore(store).getAll();
+  r.onsuccess=function(){ok(r.result||[])};r.onerror=function(){no(r.error)};
+ })});
+}
+window.JTOffline={
+ putOrder:function(o){return run('orders','readwrite',function(s){return s.put(o)})},
+ putOrders:function(os){return run('orders','readwrite',function(s){(os||[]).forEach(function(o){s.put(o)});return true})},
+ getOrders:function(){return getAll('orders')},
+ putState:function(state){return run('state','readwrite',function(s){return s.put({id:'current',state:state,updatedAt:Date.now()})})},
+ getState:function(){return getAll('state').then(function(a){return a[0]&&a[0].state||null})},
+ queue:function(payload){return run('outbox','readwrite',function(s){return s.put({id:String(Date.now())+'-'+Math.random(),payload:payload,createdAt:Date.now()})})},
+ gps:function(p){return run('gps','readwrite',function(s){return s.put({id:String(Date.now())+'-'+Math.random(),...p})})},
+ scan:function(v){return run('scans','readwrite',function(s){return s.put({id:String(Date.now())+'-'+Math.random(),value:v,createdAt:Date.now()})})},
+ sync:function(state){
+  var cfg=window.JT_CONFIG||{},base=cfg.API_BASE||'';
+  if(!base||!navigator.onLine)return Promise.reject(new Error('offline/backend not configured'));
+  return fetch(base+'/api/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+   sessionId:cfg.SESSION_ID||'default',orders:state.orders||[],history:state.history||[],
+   clientVersion:cfg.APP_VERSION||'V24',syncedAt:new Date().toISOString()
+  })}).then(function(r){if(!r.ok)throw Error('sync '+r.status);return r.json()}).then(function(x){
+   return window.JTOffline.putState({orders:x.orders||state.orders||[],history:x.history||state.history||[]}).then(function(){return x});
+  });
+ }
+};
+window.JTOfflineSync=function(){
+ if(!navigator.onLine||!window.__jtV23||!window.JTOffline)return;
+ window.JTOffline.sync(window.__jtV23.data()).then(function(x){
+  window.__jtLastSync=Date.now();
+  if(window.toast)window.toast('☁️ Dados sincronizados');
+ }).catch(function(){});
+};
+window.addEventListener('online',window.JTOfflineSync);
+})();
