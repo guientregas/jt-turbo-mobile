@@ -37,6 +37,7 @@ function gpsWatch(){
  window.__jtGpsWatch=navigator.geolocation.watchPosition(function(p){
   var pos={lat:p.coords.latitude,lng:p.coords.longitude,acc:p.coords.accuracy,at:new Date().toISOString()};
   window.__jtLastPosition=pos;
+  if(isFinite(pos.accuracy)&&pos.accuracy<=120){window.__jtV23&&window.__jtV23.setPosition&&window.__jtV23.setPosition(pos)}
   if(window.JTOffline&&JTOffline.gps)JTOffline.gps(pos).catch(function(){});
  },function(){},{enableHighAccuracy:true,maximumAge:5000,timeout:15000});
 }
