@@ -1,0 +1,30 @@
+(function(){'use strict';
+/* J&T Turbo — interface limpa + localização WhatsApp */
+var KEY='jtTurboV23';
+function $(id){return document.getElementById(id)}
+function esc(s){return String(s||'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function read(){try{var x=JSON.parse(localStorage.getItem(KEY)||'{}');return {orders:Array.isArray(x.orders)?x.orders:[],history:Array.isArray(x.history)?x.history:[]}}catch(e){return {orders:[],history:[]}}}
+function write(d){localStorage.setItem(KEY,JSON.stringify(d))}
+function modal(title,html){var m=$('modal');if(!m)return; $('mt').textContent=title;$('mb').innerHTML=html;m.className='modal on';m.setAttribute('aria-hidden','false');document.body.style.overflow='hidden'}
+function close(){var m=$('modal');if(m)m.className='modal';document.body.style.overflow=''}
+function toast(t){if(window.toast)return window.toast(t);var x=$('toast');if(x){x.textContent=t;x.className='toast on';setTimeout(function(){x.className='toast'},2200)}}
+function coords(text){text=String(text||'').trim();var m=text.match(/(-?\d{1,3}(?:\.\d+)?)[\s,;]+(-?\d{1,3}(?:\.\d+)?)/);if(m){var a=+m[1],b=+m[2];if(Math.abs(a)<=90&&Math.abs(b)<=180)return {lat:a,lng:b}}var lm=text.match(/[?&](?:q|query|ll|center)=(-?\d+(?:\.\d+)?)[,;%20]+(-?\d+(?:\.\d+)?)/i);if(lm)return {lat:+lm[1],lng:+lm[2]};var at=text.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);if(at)return {lat:+at[1],lng:+at[2]};return null}
+function pasteLocation(){
+ modal('📍 LOCALIZAÇÃO DO CLIENTE','<div class="cleanIntro"><b>Cole aqui a localização que o cliente enviou pelo WhatsApp.</b><br><span>Funciona com latitude/longitude ou link do Google Maps.</span></div><label>📍 Latitude e longitude / link do Maps</label><textarea id="clLoc" class="field" rows="3" placeholder="Ex.: -15.873210, -48.045670\nOu cole o link do Google Maps"></textarea><div class="cleanTwo"><input id="clName" class="field" placeholder="👤 Nome"><input id="clPhone" class="field" placeholder="📱 Celular"></div><input id="clAddress" class="field" placeholder="🏠 Endereço"><div class="cleanTwo"><input id="clNumber" class="field" placeholder="🔢 Número / lote"><input id="clCep" class="field" placeholder="📮 CEP"></div><input id="clSector" class="field" placeholder="🏘️ Bairro / quadra / setor"><input id="clQty" class="field" type="number" min="1" value="1" placeholder="📦 Pacotes"><div id="clPreview" class="cleanPreview">📍 Aguardando localização...</div><button id="clSave" class="green" style="width:100%;margin-top:9px">✓ SALVAR ENTREGA</button>');
+ function update(){var c=coords($('clLoc').value);$('clPreview').innerHTML=c?'🟢 <b>Localização encontrada</b><br>'+c.lat.toFixed(6)+', '+c.lng.toFixed(6):'🟡 Cole latitude/longitude ou um link do Google Maps';}
+ $('clLoc').oninput=update;
+ $('clSave').onclick=function(){var c=coords($('clLoc').value),name=$('clName').value.trim(),phone=$('clPhone').value.trim(),address=$('clAddress').value.trim();if(!c)return toast('📍 Cole primeiro a latitude e longitude ou o link do Maps');if(!name)return toast('👤 Informe o nome do cliente');if(!address)return toast('🏠 Informe o endereço');var d=read();d.orders.push({id:String(Date.now())+Math.random(),name:name,phone:phone,address:address,number:$('clNumber').value.trim(),sector:$('clSector').value.trim(),cep:$('clCep').value.trim(),lat:c.lat,lng:c.lng,locationSource:'whatsapp',locationConfirmed:true,packageCount:Math.max(1,parseInt($('clQty').value||'1',10)||1),status:'pending',createdAt:new Date().toISOString()});write(d);close();location.reload();};
+}
+function buildClean(){
+ if(!$('paste'))return;
+ /* Remove excesso visual da página principal, sem apagar funcionalidades */
+ var style=document.createElement('style');style.id='cleanUiStyle';style.textContent='.cleanTwo{display:grid;grid-template-columns:1fr 1fr;gap:6px}.cleanIntro{background:#eef6ff;border:1px solid #cfe2ff;border-radius:12px;padding:12px;margin-bottom:10px;line-height:1.45}.cleanIntro span{font-size:12px;color:#607086}.cleanPreview{background:#f4f7fb;border:1px solid #dce5ef;border-radius:10px;padding:10px;font-size:12px;margin-top:5px}.cleanMenu{display:none;margin-top:8px}.cleanMenu.on{display:block}.mainCleanTools{display:grid!important;grid-template-columns:1fr 1fr!important;gap:8px!important}.mainCleanTools button{min-height:48px}.toolsClean{display:none!important}.toolsClean.on{display:block!important}@media(max-width:520px){.cleanTwo{grid-template-columns:1fr}}';document.head.appendChild(style);
+ var add=$('manual'),imp=$('import'),paste=$('paste');
+ /* Reorganiza o bloco de cadastro */
+ var card=add.closest('.card');if(card){card.querySelector('.small')?.remove();add.textContent='＋ NOVA ENTREGA';imp.textContent='📥 IMPORTAR';paste.textContent='📍 COLAR LOCALIZAÇÃO DO WHATSAPP';paste.className='locQuick';var more=document.createElement('button');more.id='cleanMore';more.textContent='☰ MAIS FERRAMENTAS';more.style.width='100%';more.style.marginTop='7px';card.appendChild(more);var tools=card.nextElementSibling;if(tools){tools.classList.add('toolsClean');var wrap=document.createElement('div');wrap.className='cleanMenu';while(tools.firstChild)wrap.appendChild(tools.firstChild);card.parentNode.insertBefore(tools,card.nextSibling);more.onclick=function(){tools.classList.toggle('on');more.textContent=tools.classList.contains('on')?'⌃ OCULTAR FERRAMENTAS':'☰ MAIS FERRAMENTAS'}}}
+ paste.onclick=function(e){e.preventDefault();e.stopImmediatePropagation();pasteLocation();return false};
+ /* Cabeçalho deixa de ocupar espaço com texto técnico */
+ var hero=document.querySelector('.hero');if(hero){var sub=hero.querySelector('.heroSub');if(sub)sub.textContent='Tudo em um só lugar: localização, rota e entrega.';var multi=hero.querySelector('.multi');if(multi)multi.textContent='MODO ENTREGADOR'}
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',buildClean);else buildClean();setTimeout(buildClean,1200);setTimeout(buildClean,3000);
+})();
