@@ -1,217 +1,51 @@
 (function(){
 'use strict';
 var A=window.__jtV23||{},KEY='jtTurboV23',OPS='jtTurboV24Ops',lastHash='',syncBusy=false;
-
 function el(id){return document.getElementById(id)}
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 function state(){return A.data?A.data():{orders:[],history:[]}}
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(state()))}catch(e){}}
 function hash(){try{return JSON.stringify(state())}catch(e){return ''}}
+function syncNow(silent){if(syncBusy||!navigator.onLine)return;var cfg=window.JT_CONFIG||{},base=cfg.API_BASE||'';if(!base)return;syncBusy=true;fetch(base+'/api/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:cfg.SESSION_ID||'default',orders:state().orders||[],history:state().history||[],clientVersion:cfg.APP_VERSION||'V24',syncedAt:new Date().toISOString()})}).then(function(r){if(!r.ok)throw Error('sync '+r.status);return r.json()}).then(function(x){localStorage.setItem(OPS,JSON.stringify({lastSync:new Date().toISOString(),server:x.syncedAt||'',ok:true}));if(!silent&&A.toast)A.toast('☁️ Sincronizado')}).catch(function(e){localStorage.setItem(OPS,JSON.stringify({lastSync:new Date().toISOString(),ok:false,error:e.message}))}).then(function(){syncBusy=false})}
+function ensureIDB(){if(!window.JTOffline)return;var s=state();window.JTOffline.putOrders&&window.JTOffline.putOrders(s.orders||[]).catch(function(){});window.JTOffline.putState&&window.JTOffline.putState(s).catch(function(){})}
+function routeCache(){try{var s=state(),p=A.position&&A.position(),orders=(s.orders||[]).filter(function(o){return o.status!=='done'&&isFinite(+o.lat)&&isFinite(+o.lng)});localStorage.setItem('jtTurboV24RouteCache',JSON.stringify({at:Date.now(),position:p,orders:orders}))}catch(e){}}
+function alerts(){var s=state(),a=[];(s.orders||[]).forEach(function(o){if(o.status==='done')return;if(!o.phone)a.push({type:'phone',id:o.id,text:o.name+': sem telefone'});if(!isFinite(+o.lat)||!isFinite(+o.lng))a.push({type:'gps',id:o.id,text:o.name+': sem localização confirmada'});if((o.attempts||0)>=2)a.push({type:'attempt',id:o.id,text:o.name+': '+o.attempts+' tentativas'});if(o.failReason)a.push({type:'fail',id:o.id,text:o.name+': '+o.failReason})});return a}
+function openModal(title,body){var m=el('modal');if(!m)return;el('mt').textContent=title;el('mb').innerHTML=body;m.className='modal on';m.setAttribute('aria-hidden','false');document.body.style.overflow='hidden'}
+function diagnostic(){var cfg=window.JT_CONFIG||{},checks=[['GPS','geolocation'in navigator],['Internet',navigator.onLine],['Banco local','indexedDB'in window],['PWA','serviceWorker'in navigator],['Scanner','BarcodeDetector'in window],['Backend configurado',!!cfg.API_BASE]];openModal('🩺 DIAGNÓSTICO DO APP',checks.map(function(x){return'<div class=result>'+(x[1]?'✅':'⚠️')+' <b>'+x[0]+'</b></div>'}).join(''))}
+function proof(id,doneFn){var o=(state().orders||[]).find(function(x){return String(x.id)===String(id)});if(!o)return;openModal('🧾 COMPROVANTE DE ENTREGA','<div class=small>Registre quem recebeu. Foto e assinatura são opcionais.</div><input id=proofName class=field placeholder="Nome de quem recebeu" value="'+esc(o.receivedBy||'')+'"><input id=proofPhoto type=file accept="image/*" capture="environment" class=field><div class=small>Assinatura</div><canvas id=proofCanvas style="width:100%;height:150px;border:1px solid #dbe3ed;border-radius:10px;touch-action:none"></canvas><button id=proofClear style="width:100%;margin-top:6px">LIMPAR ASSINATURA</button><button id=proofSave class=green style="width:100%;margin-top:6px">✓ CONFIRMAR ENTREGA</button>');var c=el('proofCanvas'),ctx=c.getContext('2d'),drawing=false;setTimeout(function(){c.width=c.clientWidth*devicePixelRatio;c.height=150*devicePixelRatio;ctx.scale(devicePixelRatio,devicePixelRatio);ctx.lineWidth=2;ctx.lineCap='round'},20);function pt(e){var r=c.getBoundingClientRect(),t=e.touches?e.touches[0]:e;return{x:t.clientX-r.left,y:t.clientY-r.top}}c.onpointerdown=function(e){drawing=true;var p=pt(e);ctx.beginPath();ctx.moveTo(p.x,p.y);e.preventDefault()};c.onpointermove=function(e){if(!drawing)return;var p=pt(e);ctx.lineTo(p.x,p.y);ctx.stroke();e.preventDefault()};window.addEventListener('pointerup',function(){drawing=false});el('proofClear').onclick=function(){ctx.clearRect(0,0,c.width,c.height)};el('proofSave').onclick=function(){o.receivedBy=el('proofName').value.trim();o.signature=c.toDataURL('image/png');o.proofAt=new Date().toISOString();var f=el('proofPhoto').files[0];if(f)o.proofName=f.name;saveLocal();el('modal').className='modal';document.body.style.overflow='';if(doneFn)doneFn(o);A.refresh&&A.refresh();ensureIDB();A.toast&&A.toast('✓ Entrega confirmada')}}
+function wrapDone(){if(!A.finish||A.__proofWrapped)return;var original=A.finish;A.finish=function(ok){var o=A.current&&A.current();if(!o)return;if(!ok)return original(false);proof(o.id,function(){original(true)})};A.__proofWrapped=true}
+function matrixOptimize(){var s=state(),p=(s.orders||[]).filter(function(o){return o.status!=='done'});if(!p.length)return A.toast&&A.toast('Cadastre entregas primeiro');var missing=p.find(function(o){return !isFinite(+o.lat)||!isFinite(+o.lng)});if(missing)return A.toast&&A.toast('Confirme a localização de '+missing.name);var start=A.position&&A.position(),left=p.slice(),out=[],cur=start||{lat:+left[0].lat,lng:+left[0].lng};while(left.length){left.sort(function(a,b){return A.distance(cur,a)-A.distance(cur,b)});var o=left.shift();out.push(o);cur={lat:+o.lat,lng:+o.lng}}A.setRoute&&A.setRoute(out);routeCache();A.toast&&A.toast('🚚 Rota organizada com '+out.length+' paradas')}
+function addButton(){if(el('opsBtn'))return;var box=document.querySelector('.top .wrap');if(!box)return;var b=document.createElement('button');b.id='opsBtn';b.textContent='⚙️';b.title='Central de operação';b.style.cssText='float:right;margin:-5px 0 0 8px;min-height:34px;padding:6px 10px;background:#fff;color:#087cff';b.onclick=function(){openModal('🛰️ CENTRAL DE OPERAÇÃO','<div class=result><b>📦 '+state().orders.length+'</b> registros ativos • <b>'+state().history.length+'</b> registros no histórico</div><div class=buttons><button id=opsDiag>🩺 DIAGNÓSTICO</button><button id=opsCache>📍 SALVAR ROTA OFFLINE</button></div>');el('opsDiag').onclick=diagnostic;el('opsCache').onclick=function(){routeCache();A.toast('✓ Rota salva offline')}};box.appendChild(b)}
+function tick(){var h=hash();if(h!==lastHash){lastHash=h;saveLocal();ensureIDB();if(navigator.onLine)syncNow(true)}}
+addButton();wrapDone();tick();setTimeout(function(){var st=el('start');if(st)st.onclick=function(){matrixOptimize()}},100);setInterval(function(){addButton();wrapDone();tick()},4000);window.addEventListener('online',function(){syncNow(false);routeCache()});window.JT_V24={sync:syncNow,alerts:alerts,diagnostic:diagnostic,proof:proof,routeCache:routeCache};
 
-function syncNow(silent){
- if(syncBusy||!navigator.onLine)return;
- var cfg=window.JT_CONFIG||{}, base=cfg.API_BASE||'';
- if(!base)return;
- syncBusy=true;
- fetch(base+'/api/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-  sessionId:cfg.SESSION_ID||'default',orders:state().orders||[],history:state().history||[],
-  clientVersion:cfg.APP_VERSION||'V24',syncedAt:new Date().toISOString()
- })}).then(function(r){if(!r.ok)throw Error('sync '+r.status);return r.json()}).then(function(x){
-  localStorage.setItem(OPS,JSON.stringify({lastSync:new Date().toISOString(),server:x.syncedAt||'',ok:true}));
-  updateOps(); if(!silent&&A.toast)A.toast('☁️ Sincronizado');
- }).catch(function(e){
-  localStorage.setItem(OPS,JSON.stringify({lastSync:new Date().toISOString(),ok:false,error:e.message}));
-  updateOps();
- }).then(function(){syncBusy=false});
+/* ===== FIXES V25: FINALIZAÇÃO + CADASTRO VIA WHATSAPP ===== */
+function finishRouteFixed(){
+ var s=state(),orders=(s.orders||[]).slice();
+ if(!orders.length){if(A.toast)A.toast('🏁 Não há pacotes na rota');return}
+ if(!confirm('Concluir esta rota? Todos os pacotes atuais serão retirados da tela de hoje e arquivados no histórico, incluindo entregues e não entregues.'))return;
+ var now=new Date(),date=now.toLocaleDateString('pt-BR'),time=now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+ var packages=orders.map(function(o){var x=JSON.parse(JSON.stringify(o));x.routeClosedAt=now.toISOString();x.routeDate=date;x.routeTime=time;x.finalStatus=o.status==='done'?'ENTREGUE':'NÃO ENTREGUE';return x});
+ var delivered=packages.filter(function(x){return x.status==='done'}),notDelivered=packages.filter(function(x){return x.status!=='done'});
+ var routeRecord={id:'route-'+now.getTime(),type:'route',date:date,time:time,closedAt:now.toISOString(),deliveredCount:delivered.reduce(function(n,x){return n+Math.max(1,parseInt(x.packageCount||1,10)||1)},0),notDeliveredCount:notDelivered.reduce(function(n,x){return n+Math.max(1,parseInt(x.packageCount||1,10)||1)},0),packageCount:packages.reduce(function(n,x){return n+Math.max(1,parseInt(x.packageCount||1,10)||1)},0),packages:packages};
+ s.history=s.history||[];s.history.push(routeRecord);s.orders=[];saveLocal();
+ try{localStorage.setItem(KEY,JSON.stringify(s))}catch(e){}
+ if(A.setMode)A.setMode(false);if(A.setRoute)A.setRoute([]);var rc=el('routeCard');if(rc)rc.className='route hidden';var rf=el('routeFinishFloat');if(rf)rf.className='routeFinishFloat';if(A.refresh)A.refresh();if(A.toast)A.toast('🏁 ROTA CONCLUÍDA — '+routeRecord.packageCount+' pacote(s) foram para o histórico');
 }
-
-function ensureIDB(){
- if(!window.JTOffline)return;
- var s=state();
- window.JTOffline.putOrders&&window.JTOffline.putOrders(s.orders||[]).catch(function(){});window.JTOffline.putState&&window.JTOffline.putState(s).catch(function(){});
+function historyFixed(){
+ var h=state().history||[];
+ if(!h.length){openModal('🕘 HISTÓRICO','<div class=small>Nenhuma rota encerrada ainda.</div>');return}
+ var routes=h.filter(function(x){return x.type==='route'}),old=h.filter(function(x){return x.type!=='route'});
+ var html=routes.slice().reverse().map(function(r){var pk=r.packages||[];return '<div class=result><b>📅 '+esc(r.date)+' • '+esc(r.time||'')+'</b><br>📦 '+r.packageCount+' pacote(s) • ✓ '+r.deliveredCount+' entregues • ✕ '+r.notDeliveredCount+' não entregues<br><button onclick="window.__openRouteHistory(\''+esc(r.id)+'\')" style="width:100%;margin-top:7px">📦 VER PACOTES</button></div>'}).join('');
+ if(old.length)html+='<div class=small style="margin-top:10px">Registros anteriores</div>'+old.slice().reverse().map(function(o){return '<div class=result><b>'+esc(o.name||'Cliente')+'</b><br>'+esc(o.finalStatus||o.status||'')+'<br>'+esc([o.phone,o.address,o.number,o.sector,o.cep].filter(Boolean).join(' • '))+'</div>'}).join('');
+ openModal('🕘 HISTÓRICO DE ROTAS',html||'<div class=small>Nenhuma rota encerrada.</div>')
 }
-
-function gpsWatch(){
- if(!navigator.geolocation)return;
- if(window.__jtGpsWatch)return;
- window.__jtGpsWatch=navigator.geolocation.watchPosition(function(p){
-  var pos={lat:p.coords.latitude,lng:p.coords.longitude,acc:p.coords.accuracy,at:new Date().toISOString()};
-  window.__jtLastPosition=pos;
-  if(isFinite(pos.accuracy)&&pos.accuracy<=120){window.__jtV23&&window.__jtV23.setPosition&&window.__jtV23.setPosition(pos)}
-  if(window.JTOffline&&JTOffline.gps)JTOffline.gps(pos).catch(function(){});
- },function(){},{enableHighAccuracy:true,maximumAge:5000,timeout:15000});
+window.__openRouteHistory=function(id){var r=(state().history||[]).find(function(x){return String(x.id)===String(id)});if(!r)return;var pk=r.packages||[];var html='<div class=result><b>📅 '+esc(r.date)+' • '+esc(r.time||'')+'</b><br>📦 '+r.packageCount+' pacote(s)<br>✓ '+r.deliveredCount+' entregues • ✕ '+r.notDeliveredCount+' não entregues</div>'+pk.map(function(o){var q=Math.max(1,parseInt(o.packageCount||1,10)||1);return '<div class=pkg><b>'+esc(o.name||'Cliente')+'</b><span style="float:right">📦 '+q+'</span><div class=small>'+esc(o.finalStatus||'NÃO ENTREGUE')+'</div><div class=small>📱 '+esc(o.phone||'Sem telefone')+'</div><div class=small>📍 '+esc([o.address,o.number,o.complement,o.sector,o.etapa,o.cep].filter(Boolean).join(', '))+'</div>'+(o.failReason?'<div class=small>⚠️ Motivo: '+esc(o.failReason)+'</div>':'')+'</div>'}).join('');openModal('📦 PACOTES DA ROTA',html)};
+function whatsPasteFixed(){
+ openModal('💬 COLAR DADOS DO WHATSAPP','<div class=small>Você pode colar a mensagem inteira ou preencher manualmente. Nome, endereço e celular ficam salvos no pacote.</div><textarea id=wpText class=field style="min-height:110px" placeholder="Cole aqui a mensagem do WhatsApp...\nEx.: João Silva\nRua 75 QD 123 LT 27, Céu Azul\n(61) 99999-9999"></textarea><input id=wpName class=field placeholder="Nome do cliente"><input id=wpPhone class=field placeholder="Celular / WhatsApp"><input id=wpAddress class=field placeholder="Endereço completo"><input id=wpNumber class=field placeholder="Número / lote"><input id=wpSector class=field placeholder="Bairro / quadra / setor"><input id=wpCep class=field placeholder="CEP"><input id=wpQty class=field type=number min=1 value="1" placeholder="Quantidade de pacotes"><button id=wpParse style="width:100%;margin-top:5px">🧠 PREENCHER PELO TEXTO</button><button id=wpSave class=green style="width:100%;margin-top:7px">✓ SALVAR ENTREGA</button>');
+ function parse(){var t=el('wpText').value||'',lines=t.split(/\n+/).map(function(x){return x.trim()}).filter(Boolean);var phone=(t.match(/(?:\+?55\s?)?(?:\(?\d{2}\)?\s?)?\d{4,5}[-. ]?\d{4}/)||[])[0]||'';var cep=(t.match(/\b\d{5}-?\d{3}\b/)||[])[0]||'';var q=t.match(/(?:qd|quadra)\s*\.?\s*\d+[a-z]?/i);var lt=t.match(/(?:lt|lote)\s*\.?\s*\d+[a-z]?/i);if(phone)el('wpPhone').value=phone;if(cep)el('wpCep').value=cep;if(!el('wpName').value&&lines[0])el('wpName').value=lines[0].replace(phone,'').trim();if(!el('wpAddress').value)el('wpAddress').value=lines.slice(1).filter(function(x){return x!==phone&&x!==cep}).join(', ');if(!el('wpSector').value)el('wpSector').value=[q&&q[0],lt&&lt[0]].filter(Boolean).join(' ');A.toast&&A.toast('🧠 Campos preenchidos — confira antes de salvar')}
+ el('wpParse').onclick=parse;el('wpSave').onclick=function(){var name=el('wpName').value.trim(),phone=el('wpPhone').value.trim(),address=el('wpAddress').value.trim();if(!name)return A.toast&&A.toast('Informe o nome');if(!address)return A.toast&&A.toast('Informe o endereço');var o={id:String(Date.now())+Math.random(),name:name,phone:phone,address:address,number:el('wpNumber').value.trim(),sector:el('wpSector').value.trim(),cep:el('wpCep').value.trim(),packageCount:Math.max(1,parseInt(el('wpQty').value||'1',10)||1),status:'pending',source:'whatsapp'};state().orders.push(o);saveLocal();var m=el('modal');m.className='modal';document.body.style.overflow='';A.refresh&&A.refresh();A.toast&&A.toast('✓ '+name+' salvo com telefone e endereço');if(window.locate)window.locate(o,function(){});else if(o.address&&window.__jtV23&&window.__jtV23.refresh){} };
 }
-
-function drawRoadRoute(){
- var m=A.map&&A.map(),s=state(),p=A.position&&A.position(),seq=A.route&&A.route(),o=(seq&&seq.length?seq:(s.orders||[]).filter(function(x){return x.status!=='done'})).filter(function(x){return isFinite(+x.lat)&&isFinite(+x.lng)});
- if(!m||o.length<1)return;
- var pts=p?[p].concat(o):o;
- var coords=pts.map(function(x){return (+x.lng).toFixed(6)+','+(+x.lat).toFixed(6)}).join(';');
- var base=((window.JT_CONFIG&&window.JT_CONFIG.API_BASE)||'');
- fetch((base+'/api/route?path='+encodeURIComponent(coords)).replace('/api/route?path=','/api/route?points=')) .then(function(r){return r.json()}).then(function(x){
-  if(!x||!x.routes||!x.routes[0]||!x.routes[0].geometry)return;
-  if(window.__jtRoadLine){try{m.removeLayer(window.__jtRoadLine)}catch(e){}}
-  window.__jtRoadLine=L.geoJSON(x.routes[0].geometry).addTo(m);
-  A.toast&&A.toast('🛣️ Trajeto viário calculado: '+(x.routes[0].distance/1000).toFixed(1)+' km • ~'+Math.round(x.routes[0].duration/60)+' min');
- }).catch(function(){});
-}
-
-function routeCache(){
- try{
-  var s=state(),p=A.position&&A.position(),orders=(s.orders||[]).filter(function(o){return o.status!=='done'&&isFinite(+o.lat)&&isFinite(+o.lng)});
-  localStorage.setItem('jtTurboV24RouteCache',JSON.stringify({at:Date.now(),position:p,orders:orders}));
- }catch(e){}
-}
-
-function alerts(){
- var s=state(),a=[];
- (s.orders||[]).forEach(function(o){
-  if(o.status==='done')return;
-  if(!o.phone)a.push({type:'phone',id:o.id,text:o.name+': sem telefone'});
-  if(!isFinite(+o.lat)||!isFinite(+o.lng))a.push({type:'gps',id:o.id,text:o.name+': sem localização confirmada'});
-  if((o.attempts||0)>=2)a.push({type:'attempt',id:o.id,text:o.name+': '+o.attempts+' tentativas'});
-  if(o.failReason)a.push({type:'fail',id:o.id,text:o.name+': '+o.failReason});
- });
- return a;
-}
-
-function openModal(title,body){var m=el('modal'),t=el('mt'),b=el('mb');if(!m||!t||!b)return; t.textContent=title;b.innerHTML=body;m.className='modal on';m.setAttribute('aria-hidden','false');document.body.style.overflow='hidden'}
-function openOps(){
- var a=alerts(),s=state(),meta={};
- try{meta=JSON.parse(localStorage.getItem(OPS)||'{}')}catch(e){}
- var html='<div class="result"><b>📦 '+(s.orders||[]).length+'</b> pedidos • <b>'+((s.orders||[]).filter(function(o){return o.status==='done'}).length)+'</b> entregues • <b>'+a.length+'</b> alertas</div>';
- html+='<div class="result"><b>☁️ Sincronização</b><br>'+(navigator.onLine?'Online':'Offline')+'<br>'+(meta.lastSync?('Última tentativa: '+new Date(meta.lastSync).toLocaleString('pt-BR')):'Ainda não sincronizado')+'</div>';
- if(a.length)html+='<div class="result"><b>🚨 Alertas</b><br>'+a.slice(0,30).map(function(x){return '• '+esc(x.text)}).join('<br>')+'</div>';
- else html+='<div class="result">✓ Nenhum alerta operacional.</div>';
- html+='<div class="buttons"><button id="opsSync">☁️ SINCRONIZAR</button><button id="opsCache">📍 SALVAR ROTA OFFLINE</button><button id="opsDiag">🩺 DIAGNÓSTICO</button></div>';
- if(!el('modal')){A.toast&&A.toast('Central de operação indisponível');return}
- openModal('🛰️ CENTRAL DE OPERAÇÃO',html);
- el('opsSync').onclick=function(){syncNow(false)};
- el('opsCache').onclick=function(){routeCache();A.toast&&A.toast('✓ Rota salva para uso offline')};
- el('opsDiag').onclick=diagnostic;
-}
-
-function diagnostic(){
- var cfg=window.JT_CONFIG||{}, checks=[
-  ['GPS','geolocation' in navigator],
-  ['Internet',navigator.onLine],
-  ['Banco local','indexedDB' in window],
-  ['PWA','serviceWorker' in navigator],
-  ['Scanner','BarcodeDetector' in window],
-  ['Backend configurado',!!cfg.API_BASE]
- ];
- var html=checks.map(function(x){return '<div class="result">'+(x[1]?'✅':'⚠️')+' <b>'+x[0]+'</b></div>'}).join('');
- openModal('🩺 DIAGNÓSTICO DO APP',html);
-}
-
-function proof(id,doneFn){
- var o=(A.data().orders||[]).find(function(x){return String(x.id)===String(id)});
- if(!o)return;
- var html='<div class="small">Registre quem recebeu. Foto é opcional.</div>'+
- '<input id="proofName" class="field" placeholder="Nome de quem recebeu" value="'+esc(o.receivedBy||'')+'">'+
- '<input id="proofDoc" class="field" placeholder="Documento (opcional)" value="'+esc(o.receivedDoc||'')+'">'+
- '<input id="proofPhoto" type="file" accept="image/*" capture="environment" class="field">'+
- '<div class="small">Assinatura</div><canvas id="proofCanvas" style="width:100%;height:150px;border:1px solid #dbe3ed;border-radius:10px;touch-action:none"></canvas>'+
- '<button id="proofClear" style="width:100%;margin-top:6px">LIMPAR ASSINATURA</button>'+
- '<button id="proofSave" class="green" style="width:100%;margin-top:6px">✓ CONFIRMAR ENTREGA</button>';
- openModal('🧾 COMPROVANTE DE ENTREGA',html);
- var c=el('proofCanvas'),ctx=c.getContext('2d'),drawing=false;
- function resize(){c.width=c.clientWidth*devicePixelRatio;c.height=150*devicePixelRatio;ctx.scale(devicePixelRatio,devicePixelRatio);ctx.lineWidth=2;ctx.lineCap='round'}
- setTimeout(function(){resize()},20);
- function pt(e){var r=c.getBoundingClientRect(),t=e.touches?e.touches[0]:e;return{x:t.clientX-r.left,y:t.clientY-r.top}}
- function down(e){drawing=true;var p=pt(e);ctx.beginPath();ctx.moveTo(p.x,p.y);e.preventDefault()}
- function move(e){if(!drawing)return;var p=pt(e);ctx.lineTo(p.x,p.y);ctx.stroke();e.preventDefault()}
- function up(){drawing=false}
- c.addEventListener('pointerdown',down);c.addEventListener('pointermove',move);window.addEventListener('pointerup',up,{once:false});
- el('proofClear').onclick=function(){ctx.clearRect(0,0,c.width,c.height)};
- el('proofSave').onclick=function(){
-  o.receivedBy=el('proofName').value.trim();o.receivedDoc=el('proofDoc').value.trim();
-  o.signature=c.toDataURL('image/png');
-  var f=el('proofPhoto').files[0];
-  function saveProofPhoto(done){
-   if(!f){done();return}
-   var img=new Image(),url=URL.createObjectURL(f);
-   img.onload=function(){
-    var max=1280,w=img.naturalWidth,h=img.naturalHeight;
-    if(w>max||h>max){var z=Math.min(max/w,max/h);w=Math.round(w*z);h=Math.round(h*z)}
-    var pc=document.createElement('canvas');pc.width=w;pc.height=h;pc.getContext('2d').drawImage(img,0,0,w,h);
-    o.proofPhoto=pc.toDataURL('image/jpeg',.72);o.proofName=f.name;o.proofType='image/jpeg';o.proofSize=o.proofPhoto.length;URL.revokeObjectURL(url);done();
-   };
-   img.onerror=function(){URL.revokeObjectURL(url);done()};
-   img.src=url;
-  }
-  saveProofPhoto(function(){o.proofAt=new Date().toISOString();
-  saveLocal(); var cm=el('modal');if(cm){cm.className='modal';cm.setAttribute('aria-hidden','true');document.body.style.overflow=''}
-  if(doneFn)doneFn(o); A.refresh&&A.refresh(); ensureIDB(); syncNow(true);
-  A.toast&&A.toast('✓ Entrega confirmada com comprovante');
-  }); 
- };
-}
-
-function wrapDone(){
- if(!A.finish||A.__proofWrapped)return;
- var original=A.finish;
- A.finish=function(ok){
-  var o=A.current&&A.current();
-  if(!o)return;
-  if(!ok)return original(false);
-  proof(o.id,function(){original(true)});
- };
- A.__proofWrapped=true;
-}
-
-function routeBusy(){return !!window.__jtActionBusy}
-function setRouteBusy(v){
- window.__jtActionBusy=!!v;
- ['routeGo','routeCall','routeWa','routeArrive','routeDone','routeFail','routeFinish','smGo','smCall','smWa','smArr','smDone','smFail'].forEach(function(id){var b=el(id);if(b)b.disabled=!!v;});
-}
-function bindFastRouteActions(){ /* core index.html owns route button clicks; avoid duplicate handlers */ }
-
-function matrixOptimize(){
- var s=state(),p=(s.orders||[]).filter(function(o){return o.status!=='done'});
- if(!p.length)return A.toast&&A.toast('Cadastre entregas primeiro');
- var missing=p.find(function(o){return !isFinite(+o.lat)||!isFinite(+o.lng)});
- if(missing)return A.toast&&A.toast('Confirme a localização de '+missing.name);
- var start=A.position&&A.position(),points=start?[start].concat(p):p.slice();
- if(points.length<2)return;
- var coords=points.map(function(o){return (+o.lng).toFixed(6)+','+(+o.lat).toFixed(6)}).join(';');
- var url=((window.JT_CONFIG&&window.JT_CONFIG.API_BASE)||'')+'/api/route/matrix?points='+encodeURIComponent(coords);
- function fallback(){var left=p.slice(),out=[],cur=start||{lat:+left[0].lat,lng:+left[0].lng};while(left.length){left.sort(function(a,b){return A.distance(cur,a)-A.distance(cur,b)});var o=left.shift();out.push(o);cur={lat:+o.lat,lng:+o.lng}}A.setRoute&&A.setRoute(out);routeCache();drawRoadRoute();A.toast&&A.toast('🚚 Rota calculada em modo offline');}
- fetch(url).then(function(r){if(!r.ok)throw Error('matrix');return r.json()}).then(function(m){
-  if(!m||!m.durations)throw Error('matrix');
-  var used={},out=[],cur=0;
-  while(out.length<p.length){
-   var best=-1,bestT=Infinity;
-   for(var j=0;j<p.length;j++){if(used[j])continue;var t=(m.durations[cur]||[])[start?j+1:j];if(t!=null&&t<bestT){bestT=t;best=j}}
-   if(best<0)break;used[best]=1;out.push(p[best]);cur=start?best+1:best;
-  }
-  if(out.length!==p.length)throw Error('incomplete');
-  A.setRoute&&A.setRoute(out);routeCache();drawRoadRoute();A.toast&&A.toast('🧠 Rota otimizada por tempo de deslocamento');
- }).catch(fallback);
-}
-
-function addButton(){
- if(el('opsBtn'))return;
- var box=document.querySelector('.top .wrap');if(!box)return;
- var b=document.createElement('button');b.id='opsBtn';b.textContent='⚙️';b.title='Central de operação';
- b.style.cssText='float:right;margin:-5px 0 0 8px;min-height:34px;padding:6px 10px;background:#fff;color:#087cff';
- b.onclick=openOps;box.appendChild(b);
-}
-
-function tick(){
- var h=hash();
- if(h!==lastHash){lastHash=h;saveLocal();ensureIDB();if(navigator.onLine)syncNow(true)}
- updateOps();
-}
-function updateOps(){
- var b=el('opsBtn');if(!b)return;
- var a=alerts();b.title=a.length?'⚠️ '+a.length+' alerta(s)':'Central de operação';
-}
-
-addButton();wrapDone();bindFastRouteActions();tick();
-setTimeout(function(){var st=el('start');if(st)st.onclick=function(){if(routeBusy())return;matrixOptimize()},50);
-setInterval(function(){addButton();wrapDone();bindFastRouteActions();tick()},4000);
-window.addEventListener('online',function(){syncNow(false);routeCache()});
-window.addEventListener('offline',function(){A.toast&&A.toast('⚠️ OFFLINE — operação local ativa')});
-window.JT_V24={sync:syncNow,alerts:alerts,diagnostic:diagnostic,proof:proof,routeCache:routeCache};
+function bindFixed(){var paste=el('paste');if(paste){paste.textContent='💬 COLAR WHATS / CADASTRAR';paste.onclick=whatsPasteFixed}var hist=el('history');if(hist)hist.onclick=historyFixed;var f1=el('routeFinishTop'),f2=el('routeFinish'),f3=el('routeFinishFloat');if(f1)f1.onclick=finishRouteFixed;if(f2)f2.onclick=finishRouteFixed;if(f3)f3.onclick=finishRouteFixed;window.__jtFinishRoute=finishRouteFixed}
+setTimeout(bindFixed,700);setInterval(bindFixed,2500);
 })();
