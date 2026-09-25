@@ -1,0 +1,5 @@
+(function(){'use strict';
+function E(id){return document.getElementById(id)}
+function coords(text){text=String(text||'').trim();var m=text.match(/@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/);if(m)return{lat:+m[1],lng:+m[2]};m=text.match(/[?&](?:q|query|ll|center)=(-?\d+(?:\.\d+)?)[,%20]+(-?\d+(?:\.\d+)?)/i);if(m)return{lat:+m[1],lng:+m[2]};m=text.match(/(-?\d{1,3}\.\d{4,})\s*[,; ]\s*(-?\d{1,3}\.\d{4,})/);if(m){var a=+m[1],b=+m[2];if(Math.abs(a)<=90&&Math.abs(b)<=180)return{lat:a,lng:b};if(Math.abs(b)<=90&&Math.abs(a)<=180)return{lat:b,lng:a}}return null}
+function boot(){var b=E('pPasteBtn');if(!b||b.dataset.fix25)return;b.dataset.fix25='1';b.onclick=async function(){var t='';try{t=await navigator.clipboard.readText()}catch(e){}if(!t){E('pCoords').focus();return}var c=coords(t);if(c){E('pCoords').value=c.lat+', '+c.lng;if(window.__jtV23&&window.__jtV23.toast)window.__jtV23.toast('📍 Localização encontrada: '+c.lat+', '+c.lng)}else{E('pCoords').value=t;alert('Não consegui identificar automaticamente as coordenadas. Cole no formato latitude, longitude ou um link do Google Maps.')}}}
+setInterval(boot,500);})();
