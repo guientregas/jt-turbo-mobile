@@ -1,2 +1,2 @@
-window.JT_CONFIG={APP_VERSION:'V34-HEAVY-AUDIT',APP_NAME:'J&T e iMile',GEOCODER_URL:''};
-(function(){location.replace('../v33/index.html?v=20260926-v34')})();
+window.JT_CONFIG={APP_VERSION:'V35-HEAVY-AUDIT',APP_NAME:'J&T e iMile',GEOCODER_URL:''};
+(function(){location.replace('../v34/index.html?v=20260926-v35')})();
