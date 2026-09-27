@@ -127,7 +127,7 @@ function init(){
  bind('exitDelivery','onclick',()=>{if(watch)navigator.geolocation.clearWatch(watch);deliveryMode(false);$('routeBox').className='box hidden';on=false;returning=false;returnTarget=null;route=[];i=0;navHeading=null;clearRouteVisuals();clearPersistedRoute();if($('finish'))$('finish').disabled=false;render();toast('✓ Modo entrega encerrado')});
  bind('street','onclick',()=>{let o=returning?returnTarget:route[i],p=posFrom(o);if(!p)return toast('Esta entrega ainda não tem coordenadas');let u='https://www.google.com/maps/@?api=1&map_action=pano&viewpoint='+encodeURIComponent(p.lat+','+p.lng)+'&heading=0&pitch=0&fov=80';window.open(u,'_blank')});
  bind('centerMe','onclick',()=>{if(myPos&&map)map.setView([myPos.lat,myPos.lng],17);else startGps(p=>{if(p&&map)map.setView([p.lat,p.lng],17)})});
- window.addEventListener('jt:orders-changed',()=>{try{D=load();render();drawRoutePins();if(on&&route[i]){let fresh=D.orders.find(x=>x.id===route[i].id);if(fresh)route[i]=fresh;updateNavMap(route[i],true)}else draw()}catch(e){console.debug('orders sync',e)}});
+ window.addEventListener('jt:orders-changed',()=>{try{D=load();render();if(on&&!returning){syncActiveRoute().catch(()=>{});}else{draw();drawRoutePins()}}catch(e){console.debug('orders sync',e)}});
  window.addEventListener('online',()=>{toast('🟢 Internet voltou');let el=$('gps');if(el)el.textContent='📍 GPS ativo • online';if(route[i])updateNavMap(route[i],true)});
  window.addEventListener('offline',()=>{toast('🟠 Sem internet — rota e entregas continuam salvas neste aparelho');let el=$('gps');if(el)el.textContent='📍 GPS ativo • SEM INTERNET'});
  setTimeout(()=>{if(typeof L!=='undefined'){initMap();draw()}else draw()},0)
